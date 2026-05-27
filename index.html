@@ -1,0 +1,725 @@
+Aqui está a solução completa consolidada em um único arquivo HTML (askesis-md.html). Este arquivo contém toda a lógica, estilos, scripts, ícones (SVG embutidos) e o manifesto PWA necessário para funcionar como um aplicativo instalável em qualquer dispositivo (Desktop, Android, iOS).
+
+Ele inclui:
+
+Múltiplas abas com persistência local.
+Parser Markdown robusto (usando a biblioteca marked via CDN, com fallback se offline).
+Realce de sintaxe no editor (simulado com overlay de cores).
+Exportação completa: MD, HTML, PDF, FODT, RTF + Estilos personalizados "Askemata".
+Atalhos de teclado (Ctrl+S, Ctrl+W, Ctrl+Tab, etc.).
+Sistema de Temas (Claro/Escuro).
+PWA Manifest embutido para instalação.
+Sincronização Local (salva automaticamente no localStorage).
+Instruções
+Copie o código abaixo.
+Salve como askesis-md.html.
+Abra no navegador.
+Para instalar: Clique no ícone de "+" no endereço do navegador (Desktop) ou "Adicionar à Tela Inicial" (Mobile).
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4a90a4">
+    <meta name="description" content="Editor Markdown Universal, Leve e Acessível - Askesis-MD">
+    <title>Askesis-MD Editor</title>
+
+    <!-- PWA Manifest Embutido -->
+    <link rel="manifest" href='data:application/manifest+json,{
+        "name": "Askesis-MD",
+        "short_name": "Askesis",
+        "start_url": ".",
+        "display": "standalone",
+        "background_color": "#fafafa",
+        "theme_color": "#4a90a4",
+        "orientation": "any",
+        "icons": [
+            {
+                "src": "data:image/svg+xml,%3Csvg xmlns=''http://www.w3.org/2000/svg'' viewBox=''0 0 512 512''%3E%3Cpath fill=''%234a90a4'' d=''M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256 256-114.6 256-256S397.4 0 256 0zm0 464c-114.7 0-208-93.3-208-208S141.3 48 256 48s208 93.3 208 208-93.3 208-208 208z''/%3E%3Cpath fill=''%23fafafa'' d=''M256 128c-17.7 0-32 14.3-32 32v128c0 17.7 14.3 32 32 32s32-14.3 32-32V160c0-17.7-14.3-32-32-32zm0 224c-17.7 0-32 14.3-32 32s14.3 32 32 32 32-14.3 32-32-14.3-32-32-32z''/%3E%3C/svg%3E",
+                "sizes": "512x512",
+                "type": "image/svg+xml"
+            }
+        ]
+    }'>
+
+    <!-- Ícone para iOS -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns=''http://www.w3.org/2000/svg'' viewBox=''0 0 512 512''%3E%3Cpath fill=''%234a90a4'' d=''M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256 256-114.6 256-256S397.4 0 256 0zm0 464c-114.7 0-208-93.3-208-208S141.3 48 256 48s208 93.3 208 208-93.3 208-208 208z''/%3E%3C/svg%3E">
+
+    <!-- Fontes e Bibliotecas Externas (CDN) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=CMU+Serif&family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Biblioteca Marked para Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        /* --- VARIÁVEIS E TEMAS --- */
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #f0f0f0;
+            --bg-tertiary: #e0e0e0;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent: #4a90a4;
+            --accent-hover: #3a7a94;
+            --border: #d0d0d0;
+            --syntax-bg: #2d2d2d;
+            --syntax-text: #f8f8f2;
+            --error: #e74c3c;
+            --success: #2ecc71;
+            --shadow: 0 2px 8px rgba(0,0,0,0.05);
+            --font-ui: 'Inter', sans-serif;
+            --font-editor: 'JetBrains Mono', monospace;
+            --font-preview-serif: 'CMU Serif', serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3d3d3d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #6ab0c3;
+            --accent-hover: #5a90b3;
+            --border: #444;
+            --syntax-bg: #1a1a1a;
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* --- RESET E BASE --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        body {
+            font-family: var(--font-ui);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* --- TOOLBAR --- */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            height: 50px;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .menu-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        button:active { transform: scale(0.98); }
+        
+        .btn-icon { padding: 6px; }
+
+        /* --- ABAS --- */
+        .tabs-container {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            flex-shrink: 0;
+            height: 36px;
+        }
+
+        .tab {
+            padding: 0 16px;
+            background: var(--bg-tertiary);
+            border-right: 1px solid var(--border);
+            cursor: pointer;
+            font-size: 0.85rem;
+            min-width: 120px;
+            max-width: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.2s;
+        }
+
+        .tab.active {
+            background: var(--bg-primary);
+            color: var(--accent);
+            font-weight: 600;
+            border-top: 2px solid var(--accent);
+        }
+
+        .tab-close {
+            font-size: 1.2rem;
+            line-height: 1;
+            opacity: 0.5;
+            padding: 0 4px;
+        }
+        .tab-close:hover { opacity: 1; color: var(--error); }
+
+        /* --- EDITOR WRAPPER --- */
+        .editor-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pane-header {
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            display: none; /* Show only on mobile or split view */
+        }
+
+        @media (min-width: 768px) {
+            .pane-header { display: block; }
+        }
+
+        /* --- EDITOR DE TEXTO COM REALCE --- */
+        .editor-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #markdown-input, .syntax-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            font-family: var(--font-editor);
+            font-size: 1rem;
+            line-height: 1.6;
+            border: none;
+            resize: none;
+            background: transparent;
+        }
+
+        #markdown-input {
+            z-index: 2;
+            color: transparent; /* Texto invisível para ver o overlay */
+            caret-color: var(--text-primary); /* Cursor visível */
+            white-space: pre;
+            overflow: auto;
+        }
+
+        .syntax-overlay {
+            z-index: 1;
+            pointer-events: none;
+            color: var(--text-primary);
+            white-space: pre;
+            overflow: hidden; /* Scroll controlado pelo input */
+        }
+
+        /* Cores de Sintaxe */
+        .hl-header { color: var(--accent); font-weight: bold; }
+        .hl-bold { color: #e74c3c; font-weight: bold; }
+        .hl-italic { color: #2ecc71; font-style: italic; }
+        .hl-link { color: #3498db; text-decoration: underline; }
+        .hl-code { color: #f39c12; background: rgba(243, 156, 18, 0.1); padding: 0 4px; border-radius: 3px; }
+        .hl-block { color: #f39c12; background: var(--syntax-bg); padding: 10px; border-radius: 4px; display: block; margin: 5px 0; }
+        .hl-quote { color: #95a5a6; border-left: 3px solid var(--accent); padding-left: 10px; display: block; }
+        .hl-list { color: var(--accent); }
+        .hl-hr { color: var(--border); border-bottom: 1px solid var(--border); display: block; margin: 10px 0; }
+
+        /* --- PREVIEW --- */
+        #markdown-preview {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+
+        /* Estilos Padrão do Preview */
+        #markdown-preview h1, #markdown-preview h2, #markdown-preview h3 { color: var(--accent); margin-top: 1.5em; margin-bottom: 0.5em; }
+        #markdown-preview h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+        #markdown-preview code { background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; font-family: var(--font-editor); }
+        #markdown-preview pre { background: var(--syntax-bg); color: var(--syntax-text); padding: 15px; border-radius: 6px; overflow-x: auto; }
+        #markdown-preview blockquote { border-left: 4px solid var(--accent); padding-left: 15px; color: var(--text-secondary); font-style: italic; }
+        #markdown-preview img { max-width: 100%; border-radius: 4px; }
+        #markdown-preview table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        #markdown-preview th, #markdown-preview td { border: 1px solid var(--border); padding: 8px; text-align: left; }
+        #markdown-preview th { background: var(--bg-secondary); }
+
+        /* --- STATUS BAR --- */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        /* --- MODAL DE EXPORTAÇÃO --- */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--bg-primary);
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: var(--shadow);
+        }
+        .modal-title { font-size: 1.2rem; margin-bottom: 15px; color: var(--accent); }
+        .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .close-modal { float: right; cursor: pointer; font-size: 1.5rem; line-height: 1; }
+
+        /* --- RESPONSIVIDADE --- */
+        @media (max-width: 768px) {
+            .editor-wrapper { flex-direction: column; }
+            .pane { height: 50%; }
+            .toolbar { flex-direction: column; height: auto; padding: 8px; }
+            .menu-actions { width: 100%; justify-content: center; margin-top: 8px; }
+            button { flex: 1; justify-content: center; font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOOLBAR -->
+    <header class="toolbar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                <path d="M2 2l7.586 7.586"></path>
+                <circle cx="11" cy="11" r="2"></circle>
+            </svg>
+            Askesis-MD
+        </div>
+        <nav class="menu-actions">
+            <button onclick="app.addTab()" title="Nova Aba (Ctrl+T)">+ Aba</button>
+            <button onclick="app.saveCurrent()" title="Salvar (Ctrl+S)">💾</button>
+            <button onclick="app.toggleTheme()" title="Alternar Tema">🌓</button>
+            <button onclick="app.openExportModal()" title="Exportar">📤</button>
+        </nav>
+    </header>
+
+    <!-- ABAS -->
+    <div class="tabs-container" id="tabs-container">
+        <!-- Abas geradas via JS -->
+    </div>
+
+    <!-- ÁREA PRINCIPAL -->
+    <main class="editor-wrapper">
+        <!-- Painel Esquerdo: Editor -->
+        <div class="pane">
+            <div class="pane-header">Edição</div>
+            <div class="editor-container">
+                <div class="syntax-overlay" id="syntax-overlay"></div>
+                <textarea id="markdown-input" spellcheck="false" placeholder="Digite seu Markdown aqui..."></textarea>
+            </div>
+        </div>
+
+        <!-- Painel Direito: Preview -->
+        <div class="pane">
+            <div class="pane-header">Visualização</div>
+            <div id="markdown-preview"></div>
+        </div>
+    </main>
+
+    <!-- STATUS BAR -->
+    <footer class="status-bar">
+        <span id="status-msg">Pronto</span>
+        <span id="char-count">0 chars</span>
+        <span id="cursor-pos">L1, C1</span>
+    </footer>
+
+    <!-- MODAL DE EXPORTAÇÃO -->
+    <div class="modal" id="export-modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="app.closeExportModal()">&times;</span>
+            <h3 class="modal-title">Exportar Documento</h3>
+            <div class="modal-actions">
+                <button onclick="app.export('md')">.MD</button>
+                <button onclick="app.export('html')">HTML</button>
+                <button onclick="app.export('pdf')">PDF</button>
+                <button onclick="app.export('fodt')">FODT</button>
+                <button onclick="app.export('rtf')">RTF</button>
+                <button onclick="app.export('custom_html')" style="grid-column: span 2; background: var(--accent); color: white;">HTML Askemata</button>
+                <button onclick="app.export('custom_pdf')" style="grid-column: span 2; background: var(--accent); color: white;">PDF Askemata</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * LÓGICA DO APLICATIVO ASKESIS-MD
+         * Tudo em um único arquivo para portabilidade máxima.
+         */
+
+        const WELCOME_CONTENT = `# Bem-vindo ao Askesis-MD
+
+> "A simplicidade é o último grau de sofisticação." — Leonardo da Vinci
+
+## Leveza e Acessibilidade
+
+Este editor foi projetado para ser:
+- **Leve**: Mínimo consumo de recursos
+- **Universal**: Funciona em qualquer dispositivo com navegador
+- **Acessível**: Interface limpa e intuitiva
+
+---
+
+*Criado por Askesis*
+*askesis.hypotheses.org*`;
+
+        class AskesisApp {
+            constructor() {
+                this.tabs = [];
+                this.activeTabId = null;
+                this.theme = localStorage.getItem('askesis-theme') || 'light';
+                
+                // Elementos DOM
+                this.input = document.getElementById('markdown-input');
+                this.overlay = document.getElementById('syntax-overlay');
+                this.preview = document.getElementById('markdown-preview');
+                this.tabsContainer = document.getElementById('tabs-container');
+                this.statusMsg = document.getElementById('status-msg');
+                this.charCount = document.getElementById('char-count');
+                this.cursorPos = document.getElementById('cursor-pos');
+                this.modal = document.getElementById('export-modal');
+
+                this.init();
+            }
+
+            init() {
+                this.applyTheme();
+                this.loadTabs();
+                this.setupEventListeners();
+                this.render();
+            }
+
+            applyTheme() {
+                document.documentElement.setAttribute('data-theme', this.theme);
+            }
+
+            toggleTheme() {
+                this.theme = this.theme === 'light' ? 'dark' : 'light';
+                localStorage.setItem('askesis-theme', this.theme);
+                this.applyTheme();
+            }
+
+            setupEventListeners() {
+                // Input e Renderização
+                this.input.addEventListener('input', () => this.updateEditor());
+                this.input.addEventListener('scroll', () => {
+                    this.overlay.scrollTop = this.input.scrollTop;
+                    this.overlay.scrollLeft = this.input.scrollLeft;
+                });
+                this.input.addEventListener('keyup', () => this.updateCursor());
+                this.input.addEventListener('click', () => this.updateCursor());
+
+                // Atalhos de Teclado Globais
+                document.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        e.preventDefault();
+                        this.saveCurrent();
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                        e.preventDefault();
+                        this.addTab();
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+                        e.preventDefault();
+                        if (this.activeTabId) this.closeTab(this.activeTabId);
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
+                        e.preventDefault();
+                        const idx = this.tabs.findIndex(t => t.id === this.activeTabId);
+                        const nextIdx = e.shiftKey ? (idx - 1 + this.tabs.length) % this.tabs.length : (idx + 1) % this.tabs.length;
+                        this.activateTab(this.tabs[nextIdx].id);
+                    }
+                });
+            }
+
+            loadTabs() {
+                const saved = localStorage.getItem('askesis-tabs');
+                if (saved) {
+                    try {
+                        this.tabs = JSON.parse(saved);
+                    } catch (e) {
+                        this.tabs = [{ id: Date.now(), name: 'Novo Documento', content: '' }];
+                    }
+                } else {
+                    this.tabs = [{ id: Date.now(), name: 'Bem-vindo', content: WELCOME_CONTENT }];
+                }
+                
+                if (this.tabs.length === 0) this.addTab();
+                this.activateTab(this.tabs[0].id);
+            }
+
+            saveData() {
+                localStorage.setItem('askesis-tabs', JSON.stringify(this.tabs));
+                localStorage.setItem('askesis-theme', this.theme);
+            }
+
+            addTab(content = '') {
+                const id = Date.now();
+                const name = `Documento ${this.tabs.length + 1}`;
+                this.tabs.push({ id, name, content });
+                this.activateTab(id);
+                this.renderTabs();
+                this.saveData();
+                this.setStatus(`Nova aba criada: ${name}`);
+            }
+
+            closeTab(id) {
+                if (this.tabs.length === 1) {
+                    this.setStatus("Não é possível fechar a última aba.");
+                    return;
+                }
+                const idx = this.tabs.findIndex(t => t.id === id);
+                if (idx > -1) {
+                    this.tabs.splice(idx, 1);
+                    const newActive = this.tabs[idx] || this.tabs[idx - 1];
+                    this.activateTab(newActive.id);
+                    this.renderTabs();
+                    this.saveData();
+                }
+            }
+
+            activateTab(id) {
+                this.activeTabId = id;
+                const tab = this.tabs.find(t => t.id === id);
+                if (tab) {
+                    this.input.value = tab.content;
+                    this.updateEditor(); // Atualiza overlay e preview
+                    this.renderTabs();
+                }
+            }
+
+            renderTabs() {
+                this.tabsContainer.innerHTML = '';
+                this.tabs.forEach(tab => {
+                    const el = document.createElement('div');
+                    el.className = `tab ${tab.id === this.activeTabId ? 'active' : ''}`;
+                    el.innerHTML = `
+                        <span class="tab-name" title="${tab.name}">${tab.name}</span>
+                        <span class="tab-close" onclick="event.stopPropagation(); app.closeTab(${tab.id})">×</span>
+                    `;
+                    el.onclick = () => this.activateTab(tab.id);
+                    this.tabsContainer.appendChild(el);
+                });
+            }
+
+            updateEditor() {
+                const content = this.input.value;
+                const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+                if (activeTab) {
+                    activeTab.content = content;
+                    this.saveData(); // Auto-save
+                }
+
+                // Atualiza Overlay de Sintaxe
+                this.highlightSyntax(content);
+                
+                // Atualiza Preview
+                this.renderPreview(content);
+                
+                // Stats
+                this.charCount.textContent = `${content.length} caracteres`;
+            }
+
+            highlightSyntax(text) {
+                // Escape HTML básico para segurança
+                let html = text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+
+                // Aplicar classes de sintaxe (ordem importa)
+                html = html
+                    .replace(/^### (.+)$/gm, '<span class="hl-header">### $1</span>')
+                    .replace(/^## (.+)$/gm, '<span class="hl-header">## $1</span>')
+                    .replace(/^# (.+)$/gm, '<span class="hl-header"># $1</span>')
+                    .replace(/\*\*(.+?)\*\*/g, '<span class="hl-bold">**$1**</span>')
+                    .replace(/\*(.+?)\*/g, '<span class="hl-italic">*$1*</span>')
+                    .replace(/\[(.+?)\]\((.+?)\)/g, '<span class="hl-link">[$1]($2)</span>')
+                    .replace(/`(.+?)`/g, '<span class="hl-code">`$1`</span>')
+                    .replace(/```([\s\S]*?)```/g, '<span class="hl-block">```$1```</span>')
+                    .replace(/^> (.+)$/gm, '<span class="hl-quote">> $1</span>')
+                    .replace(/^\- (.+)$/gm, '<span class="hl-list">- $1</span>')
+                    .replace(/^\* (.+)$/gm, '<span class="hl-list">* $1</span>')
+                    .replace(/^---$/gm, '<span class="hl-hr">---</span>');
+
+                this.overlay.innerHTML = html + '<br>'; // Adiciona br extra para scroll
+            }
+
+            renderPreview(text) {
+                // Usa marked.js se disponível, senão fallback simples
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({
+                        gfm: true,
+                        breaks: true,
+                        headerIds: false
+                    });
+                    this.preview.innerHTML = marked.parse(text);
+                } else {
+                    // Fallback muito básico se offline e sem CDN
+                    this.preview.innerHTML = text.replace(/\n/g, '<br>');
+                }
+            }
+
+            updateCursor() {
+                const val = this.input.value;
+                const pos = this.input.selectionStart;
+                const lines = val.substring(0, pos).split('\n');
+                const line = lines.length;
+                const col = lines[lines.length - 1].length + 1;
+                this.cursorPos.textContent = `L${line}, C${col}`;
+            }
+
+            setStatus(msg) {
+                this.statusMsg.textContent = msg;
+                setTimeout(() => { if(this.statusMsg.textContent === msg) this.statusMsg.textContent = 'Pronto'; }, 3000);
+            }
+
+            saveCurrent() {
+                this.setStatus("Documento salvo localmente.");
+            }
+
+            // --- EXPORTAÇÃO ---
+
+            openExportModal() { this.modal.classList.add('active'); }
+            closeExportModal() { this.modal.classList.remove('active'); }
+
+            export(type) {
+                const content = this.tabs.find(t => t.id === this.activeTabId)?.content || '';
+                let filename = `documento_${Date.now()}`;
+                let blob, mime;
+
+                switch(type) {
+                    case 'md':
+                        blob = new Blob([content], { type: 'text/markdown' });
+                        filename += '.md';
+                        break;
+                    case 'html':
+                        blob = new Blob([this.generateBasicHTML(content)], { type: 'text/html' });
+                        filename += '.html';
+                        break;
+                    case 'custom_html':
+                        blob = new Blob([this.generateAskemataHTML(content)], { type: 'text/html' });
+                        filename += '_askemata.html';
+                        break;
+                    case 'pdf':
+                        this.exportPDF(content, false);
+                        return;
+                    case 'custom_pdf':
+                        this.exportPDF(content, true);
+                        return;
+                    case 'fodt':
+                        blob = new Blob([this.generateFODT(content)], { type: 'application/vnd.oasis.opendocument.text-flat-xml' });
+                        filename += '.fodt';
+                        break;
+                    case 'rtf':
+                        blob = new Blob([this.generateRTF(content)], { type: 'application/rtf' });
+                        filename += '.rtf';
+                        break;
+                }
+
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.closeExportModal();
+                    this.setStatus(`Exportado: ${filename}`);
+                }
+            }
+
+            generateBasicHTML(content) {
+                return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Askesis Doc</title><style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:20px;line-height:1.6}h1,h2,h3{color:#4a90a4}code{background:#f0f0f0;padding:2px 6px;border-radius:3px}pre{background:#2d2d2d;color:#fff;padding:15px;border-radius:5px}blockquote{border-left:3px solid #4a90a4;padding-left:15px;color:#666}</style></head><body>${marked.parse(content)}</body></html>`;
+            }
+
+            generateAskemataHTML(content) {
+                // Estilo inspirado em askemata.github.io com Computer Modern
+                return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Documento Askesis</title>
+    <link href="https://fonts.googleapis.com/css2?family=CMU+Serif&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'CMU Serif', serif; 
+            max-width: 700px; margin: 60px auto; padding: 30px; 
+            line-height: 1.8; color: #2c3e50; 
+            background: #fff;
+        }
+        h1 { font-size: 2.2em; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 1.5em; }
+        h2 { font-size: 1.8em; margin-top: 1.2em; }
+        h3 { font-size: 1.4em; margin-top: 1em; }
+        p { margin: 1.2em 0; text-align: justify; }
+        code { font-family: 'Courier New', monospace; background: #f8f8f8; padding: 2px 8px; border-radius: 3px; font-size: 0.9em; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 5px; overflow-x: auto; font-size: 0.9em; }
+        blockquote { border-left: 4px solid #4a90a4; padding-left: 20px; margin: 1.5em 0; font-style: italic; color: #555; }
+        a { color: #4a90a4; text-decoration: none; }
