@@ -1,21 +1,88 @@
+                        const htmlContent = `
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#4a90a4">
-    <meta name="description" content="Editor Markdown Universal, Leve e Acessível - Askesis-MD">
-    <title>Askesis-MD Editor</title>
+<meta charset="utf-8">
+<title>${name}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=CMU+Serif&display=swap');
+body { font-family: 'CMU Serif', 'Computer Modern', serif; max-width: 800px; margin: 40px auto; line-height: 1.6; color: #333; background: #fff; padding: 20px; }
+h1, h2, h3 { font-family: 'CMU Serif', serif; color: #222; }
+code { font-family: 'Courier New', monospace; background: #f4f4f4; padding: 2px 5px; }
+blockquote { border-left: 4px solid #ccc; padding-left: 15px; color: #666; font-style: italic; }
+@media print { body { margin: 0; } }
+</style>
+</head>
+<body>
+${marked.parse(content)}
+</body>
+</html>`;
+                        const win = window.open('', '_blank');
+                        win.document.write(htmlContent);
+                        win.document.close();
+                        win.print();
+                        this.setStatus("Janela de impressão aberta para PDF (Askemata Style)");
+                        return;
+                    }
+                    else if (format === 'rtf') {
+                        // Conversão básica MD para RTF
+                        let rtf = "{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times New Roman;}}\\f0\\fs24 ";
+                        rtf += content
+                            .replace(/&/g, "\\&")
+                            .replace(/\n/g, "\\par ")
+                            .replace(/\*\*(.*?)\*\*/g, "{\\b $1\\b0 }")
+                            .replace(/# (.*?)(\n|$)/g, "{\\fs36 \\b $1\\b0 \\par }");
+                        rtf += "}";
+                        blob = new Blob([rtf], { type: 'application/rtf' });
+                        ext = 'rtf';
+                    }
+                    else if (format === 'fodt') {
+                        // FODT básico (Flat OpenDocument Text)
+                        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-text xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:body><office:text>
+    ${marked.parse(content).replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+  </office:text></office:body>
+</office:document-text>`;
+                        blob = new Blob([xml], { type: 'application/vnd.oasis.opendocument.text-flat-xml' });
+                        ext = 'fodt';
+                    }
 
-    <!-- PWA Manifest Embutido -->
-    <link rel="manifest" href='data:application/manifest+json,{
-        "name": "Askesis-MD",
-        "short_name": "Askesis",
-        "start_url": ".",
-        "display": "standalone",
-        "background_color": "#fafafa",
-        "theme_color": "#4a90a4",
-        "orientation": "any",
-        "icons": [
-            {
-                "src": "data:image/svg+xml,%3Csvg xmlns=''http://www.w3.org/2000/svg'' viewBox=''0 0 512 512''%3E%3Cpath fill=''%234a90a4'' d=''M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256 256-114.6 256-256S397.4 0 256
+                    // Download do arquivo
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${name}.${ext}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    this.setStatus(`Exportado: ${name}.${ext}`);
+                } catch (err) {
+                    console.error(err);
+                    this.setStatus("Erro na exportação.");
+                }
+            }
+        };
+
+        // Inicializar ao carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+            
+            // Carregar tema salvo
+            const savedTheme = localStorage.getItem('askesis-theme');
+            if (savedTheme) {
+                app.setTheme(savedTheme);
+            }
+        });
+
+        // Fechar modal ao clicar fora
+        document.getElementById('export-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'export-modal') {
+                e.target.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
